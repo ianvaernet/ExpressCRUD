@@ -9,6 +9,7 @@
 
 1. Run `npm install`
 2. Run `npm run init`
+3. In your browser, go to `localhost:8000/api`
 
 After that:
 
