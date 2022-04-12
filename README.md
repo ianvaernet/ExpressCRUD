@@ -15,3 +15,8 @@ After that:
 
 - Run `npm start` to start the containers
 - Run `npm stop` to stop the containers
+
+## Commands:
+
+- `npm run migrate migrationName` to create a new migration
+- `npm run lint` to lint the code
