@@ -1,59 +1,259 @@
-import express from 'express';
-import { UserService } from '@services';
+import express, { Request } from 'express';
+import { body } from 'express-validator';
+import { BadRequestException } from '../exceptions';
+import { DIContainer } from '../inversify.config';
+import { UserMapper } from '../mappers';
+import { DI, IUserService } from '../types';
+import { validateRequest } from '../utils';
 
 const router = express.Router();
-// const { check } = require('express-validator');
+const userService = DIContainer.get<IUserService>(DI.IUserService);
 
-router.get('/', function (req, res, next) {
-  res.send('GET api/users');
+/**
+ * @openapi
+ *   /users:
+ *     get:
+ *       tags: ["Users"]
+ *       summary: List users
+ *       responses:
+ *         200:
+ *           description: List of users
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 allOf:
+ *                   - $ref: '#/components/schemas/ApiResponse'
+ *                   - type: object
+ *                     properties:
+ *                       data:
+ *                         type: array
+ *                         items:
+ *                           $ref: '#/components/schemas/User'
+ */
+router.get('/', async function (req, res, next) {
+  try {
+    const users = await userService.listUsers({});
+    const userDTOs = users.map((user) => UserMapper.toDTO(user));
+    res.status(200).json({ data: userDTOs });
+  } catch (error) {
+    next(error);
+  }
 });
 
 /**
- * POST /api/users
- * @tags users
- * @summary CREATE USER
- * @param { CreateUserInput } request.body.required
- * @return { UserResponse } 201 - user create response
- * @return { object } 422 - user not created
+ * @openapi
+ *   /users:
+ *     post:
+ *       tags: ["Users"]
+ *       summary: Create a user
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/CreateUser'
+ *       responses:
+ *         200:
+ *           description: User created
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 allOf:
+ *                   - $ref: '#/components/schemas/ApiResponse'
+ *                   - type: object
+ *                     properties:
+ *                       data:
+ *                         $ref: '#/components/schemas/User'
+ *         400:
+ *           description: Error in some input values
  */
-// router.post(
-//   '/',
-//   [
-//     check('firstName', 'First name is required').notEmpty(),
-//     check('lastName', 'Last name is required').notEmpty(),
-//     check('email').custom((value) =>
-//       User.findOne({ where: { email: value } }).then((user) => {
-//         if (user) {
-//           return Promise.reject('E-mail already in use');
-//         }
-//       })
-//     ),
-//     check('email').isEmail().normalizeEmail(),
-//     check('password', 'Password is required').notEmpty(),
-//     check('password', 'The password must have at least 8 characters.').isLength({ min: 8 }),
-//     check('country', 'Country is required').notEmpty(),
-//     check('city', 'City is required').notEmpty(),
-//   ],
-//   async (req, res) => {
-//     validateRequest(req, res);
-//     const { password, email } = req.body;
-//     try {
-//       if (email == password) {
-//         res.status(baseApi.httpCodes.HTTP_INVALID_REQUEST).json({
-//           errors: [{ message: baseApi.apiString.EMAIL_DIFFERENT_PASSWORD }],
-//         });
-//       } else {
-//         const user = await createUser(req.body);
-//         if (user && process.env.NODE_ENV != 'test') {
-//           const cv = await createCurriculum(user.id);
-//           await notifySlackCreated(user);
-//         }
-//         res.status(baseApi.httpCodes.HTTP_CREATED).json({ data: user });
-//       }
-//     } catch (err) {
-//       returnErrors(res, err);
-//     }
-//   }
-// );
+router.post(
+  '/',
+  body('firstName', 'cannot be empty').isString().notEmpty(),
+  body('lastName', 'cannot be empty').isString().notEmpty(),
+  body('email', 'must be a valid email').isEmail(),
+  body('email', 'cannot have more than 100 characters').isLength({ max: 100 }),
+  body('password', 'must be at least 8 characters').isString().isLength({ min: 8 }),
+  body('password', 'cannot have more than 100 characters').isString().isLength({ max: 100 }),
+  async (req: Request, res, next) => {
+    try {
+      validateRequest(req);
+      const user = await userService.createUser(req.body);
+      res.status(201).json({ data: UserMapper.toDTO(user) });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * @openapi
+ *   /users/{id}:
+ *     get:
+ *       tags: ["Users"]
+ *       summary: Get user by id
+ *       parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *       responses:
+ *         200:
+ *           description: The requested user
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 allOf:
+ *                   - $ref: '#/components/schemas/ApiResponse'
+ *                   - type: object
+ *                     properties:
+ *                       data:
+ *                         $ref: '#/components/schemas/User'
+ *         400:
+ *           description: Invalid user id
+ *         404:
+ *           description: User not found
+ */
+router.get('/:id', async function (req, res, next) {
+  try {
+    const userId = parseInt(req.params.id);
+    if (isNaN(userId)) throw new BadRequestException('Invalid user id');
+    const user = await userService.getUser(userId);
+    const userDTO = UserMapper.toDTO(user);
+    res.status(200).json({ data: userDTO });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @openapi
+ *   /users/{id}:
+ *     put:
+ *       tags: ["Users"]
+ *       summary: Update user by id
+ *       parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/UpdateUser'
+ *       responses:
+ *         200:
+ *           description: The updated user
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 allOf:
+ *                   - $ref: '#/components/schemas/ApiResponse'
+ *                   - type: object
+ *                     properties:
+ *                       data:
+ *                         $ref: '#/components/schemas/User'
+ *         400:
+ *           description: Invalid user id
+ *         404:
+ *           description: User not found
+ */
+router.put('/:id', async function (req, res, next) {
+  try {
+    const userId = parseInt(req.params.id);
+    if (isNaN(userId)) throw new BadRequestException('Invalid user id');
+    const user = await userService.updateUser(userId, req.body);
+    const userDTO = UserMapper.toDTO(user);
+    res.status(200).json({ data: userDTO });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @openapi
+ *   /users/{id}:
+ *     delete:
+ *       tags: ["Users"]
+ *       summary: Delete a user by id
+ *       parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *       responses:
+ *         200:
+ *           description: User deleted
+ *           content:
+ *             application/json:
+ *               schema:
+ *                 $ref: '#/components/schemas/ApiResponse'
+ *         400:
+ *           description: Invalid user id
+ *         404:
+ *           description: User not found
+ */
+router.delete('/:id', async function (req, res, next) {
+  try {
+    const userId = parseInt(req.params.id);
+    if (isNaN(userId)) throw new BadRequestException('Invalid user id');
+    await userService.deleteUser(userId);
+    res.status(200).json({ message: 'User successfully deleted' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     ApiResponse:
+ *       type: object
+ *       properties:
+ *         message:
+ *          type: string
+ *         details:
+ *          type: string
+ *     User:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *         firstName:
+ *           type: string
+ *         lastName:
+ *          type: string
+ *     CreateUser:
+ *       type: object
+ *       properties:
+ *         firstName:
+ *           type: string
+ *         lastName:
+ *           type: string
+ *         email:
+ *           type: string
+ *         password:
+ *           type: string
+ *       required:
+ *       - firstName
+ *       - lastName
+ *       - email
+ *       - password
+ *     UpdateUser:
+ *       type: object
+ *       properties:
+ *         firstName:
+ *           type: string
+ *         lastName:
+ *           type: string
+ *         email:
+ *           type: string
+ */
 
 export default router;

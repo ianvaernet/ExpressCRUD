@@ -1,7 +1,7 @@
-import { User } from '@models';
+import { User } from '../models';
 import { injectable } from 'inversify';
 import { appDataSource } from '../data-source';
-import { IUserRepository } from '@types';
+import { IUserRepository, ListUserParams } from 'types';
 import { FindManyOptions, Repository } from 'typeorm';
 
 @injectable()
@@ -12,7 +12,7 @@ export class UserRepository implements IUserRepository {
     this.repo = appDataSource.getRepository(User);
   }
 
-  listUsers({ pageNumber = 1, pageSize }: { filters?: Record<string, any>; pageNumber: number; pageSize?: number }) {
+  listUsers({ pageNumber = 1, pageSize }: ListUserParams) {
     const options: FindManyOptions = {};
     if (pageSize) {
       options.take = pageSize;
@@ -34,7 +34,7 @@ export class UserRepository implements IUserRepository {
   }
 
   deleteUserById(id: number) {
-    this.repo.delete(id);
+    return this.repo.delete(id);
   }
 
   deleteMany(ids: number[]) {

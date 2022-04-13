@@ -1,6 +1,5 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
-import { User } from '@models';
 
 export const appDataSource = new DataSource({
   type: 'mysql',
@@ -9,7 +8,7 @@ export const appDataSource = new DataSource({
   username: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  entities: [User],
+  entities: [__dirname + '/../**/*.model.js'],
   synchronize: true,
   logging: false,
 });
@@ -20,5 +19,5 @@ export const appDataSource = new DataSource({
 appDataSource.initialize()
   .then(() => {
     // here you can start to work with your database
-  })
-  .catch((error) => console.log(error));
+  }) // eslint-disable-next-line no-console
+  .catch((error) => console.error(error));
